@@ -12,7 +12,6 @@ import LoginServiceKit
 import RxCocoa
 import RxSwift
 import Silica
-import Sparkle
 import SwiftyBeaver
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -49,17 +48,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         UserConfiguration.shared.delegate = self
         UserConfiguration.shared.load()
 
-        #if RELEASE
-            let appcastURLString = { () -> String? in
-                if UserConfiguration.shared.useCanaryBuild() {
-                    return Bundle.main.infoDictionary?["SUCanaryFeedURL"] as? String
-                } else {
-                    return Bundle.main.infoDictionary?["SUFeedURL"] as? String
-                }
-            }()!
-
-            SUUpdater.shared().feedURL = URL(string: appcastURLString)
-        #endif
+        // Sparkle is deliberately not started in this fork. It pointed at ianyh.com's appcast,
+        // so leaving it enabled would let an upstream release install itself over this build and
+        // take the fixes with it. There is no appcast for this fork; updates are a rebuild.
 
         preferencesWindowController?.window?.level = .floating
 
@@ -157,9 +148,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @IBAction func checkForUpdates(_ sender: AnyObject) {
-        #if RELEASE
-            SUUpdater.shared().checkForUpdates(sender)
-        #endif
+        // See applicationDidFinishLaunching: this fork has no update feed.
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "No update feed"
+        alert.informativeText = "This is a personal fork. Rebuild from ~/Projects/AmethystFork to update it."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     private func presentDotfileWarningIfNecessary() {

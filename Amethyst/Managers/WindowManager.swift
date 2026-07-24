@@ -477,16 +477,25 @@ extension WindowManager {
      Cheap by construction: the only syscall in the common case is the window list itself. If
      nothing is missing, no accessibility calls are made at all.
      */
-    func adoptUntrackedWindows() {
-        guard let windowsInfo = CGWindowsInfo<Window>(options: .optionOnScreenOnly, windowID: CGWindowID(0)) else {
-            return
-        }
+    /**
+     Picks out the processes that own an on-screen window we are not tracking.
 
-        let trackedIDs = Set(windows.windows.map { $0.cgID() })
-        let ownPID = ProcessInfo.processInfo.processIdentifier
-        var pidsWithUntrackedWindows: Set<pid_t> = []
+     Split out from `adoptUntrackedWindows` so the selection rules can be tested without a live
+     window server.
 
-        for description in windowsInfo.descriptions {
+     - Parameters:
+        - descriptions: Window descriptions as returned by `CGWindowListCopyWindowInfo`.
+        - trackedIDs: `CGWindowID`s currently being tracked.
+        - ownPID: This process, which manages windows but never its own.
+     */
+    static func pidsOwningUntrackedWindows(
+        descriptions: [[String: AnyObject]],
+        trackedIDs: Set<CGWindowID>,
+        ownPID: pid_t
+    ) -> Set<pid_t> {
+        var pids: Set<pid_t> = []
+
+        for description in descriptions {
             // Layer 0 is the normal window layer. Menus, HUDs, and the like sit above it and are
             // never managed, so filtering here keeps us from waking apps up for nothing.
             guard let layer = description[kCGWindowLayer as String] as? NSNumber, layer.intValue == 0 else {
@@ -506,12 +515,28 @@ extension WindowManager {
                 continue
             }
 
-            pidsWithUntrackedWindows.insert(pid)
+            pids.insert(pid)
         }
+
+        return pids
+    }
+
+    func adoptUntrackedWindows() {
+        guard let windowsInfo = CGWindowsInfo<Window>(options: .optionOnScreenOnly, windowID: CGWindowID(0)) else {
+            return
+        }
+
+        let pidsWithUntrackedWindows = Self.pidsOwningUntrackedWindows(
+            descriptions: windowsInfo.descriptions,
+            trackedIDs: Set(windows.windows.map { $0.cgID() }),
+            ownPID: ProcessInfo.processInfo.processIdentifier
+        )
 
         guard !pidsWithUntrackedWindows.isEmpty else {
             return
         }
+
+        log.debug("Reconciling untracked on-screen windows for pids: \(pidsWithUntrackedWindows.sorted())")
 
         for pid in pidsWithUntrackedWindows {
             guard let application = applicationWithPID(pid) else {

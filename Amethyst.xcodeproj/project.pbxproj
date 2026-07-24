@@ -17,7 +17,6 @@
 		400A5E9D2327350C00F0A2C3 /* Space.swift in Sources */ = {isa = PBXBuildFile; fileRef = 400A5E9C2327350C00F0A2C3 /* Space.swift */; };
 		400D48F42A92AF1E0082750F /* Cartography in Frameworks */ = {isa = PBXBuildFile; productRef = 400D48F32A92AF1E0082750F /* Cartography */; };
 		400D48F72A92AF9B0082750F /* LoginServiceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 400D48F62A92AF9B0082750F /* LoginServiceKit */; };
-		400D48FA2A92B0130082750F /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 400D48F92A92B0130082750F /* Sparkle */; };
 		400D48FD2A92B06B0082750F /* SwiftyJSON in Frameworks */ = {isa = PBXBuildFile; productRef = 400D48FC2A92B06B0082750F /* SwiftyJSON */; };
 		400D49002A92B0A00082750F /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 400D48FF2A92B0A00082750F /* Yams */; };
 		400F2DF32AABF4FC00C1AAE2 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 400F2DF22AABF4FC00C1AAE2 /* KeyboardShortcuts */; };
@@ -125,6 +124,7 @@
 		40E2D2302D544F1E00D16B87 /* Silica in Frameworks */ = {isa = PBXBuildFile; productRef = 40E2D22F2D544F1E00D16B87 /* Silica */; };
 		40E705D8176EAD7800850DA6 /* default.amethyst in Resources */ = {isa = PBXBuildFile; fileRef = 40E705D7176EAD7800850DA6 /* default.amethyst */; };
 		40EC47F423F3A30100048B4F /* ScreenManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40EC47F323F3A30100048B4F /* ScreenManagerTests.swift */; };
+		AAAA000123F3A30100048B4F /* WindowManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA000223F3A30100048B4F /* WindowManagerTests.swift */; };
 		40EFFB4A2F0226EF00EDD929 /* Silica in Frameworks */ = {isa = PBXBuildFile; productRef = 40EFFB492F0226EF00EDD929 /* Silica */; };
 		4493EAA22139D9F000AA9623 /* ThreeColumnLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4493EAA12139D9EF00AA9623 /* ThreeColumnLayout.swift */; };
 		AA4AF40D26717DA900D2AE1B /* TwoPaneLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA4AF40C26717DA900D2AE1B /* TwoPaneLayout.swift */; };
@@ -256,6 +256,7 @@
 		40DA8B6D27D5AA7300C291AF /* subset.js */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.javascript; path = subset.js; sourceTree = "<group>"; };
 		40E705D7176EAD7800850DA6 /* default.amethyst */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = default.amethyst; sourceTree = "<group>"; };
 		40EC47F323F3A30100048B4F /* ScreenManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenManagerTests.swift; sourceTree = "<group>"; };
+		AAAA000223F3A30100048B4F /* WindowManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowManagerTests.swift; sourceTree = "<group>"; };
 		4493EAA12139D9EF00AA9623 /* ThreeColumnLayout.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ThreeColumnLayout.swift; sourceTree = "<group>"; };
 		AA4AF40C26717DA900D2AE1B /* TwoPaneLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoPaneLayout.swift; sourceTree = "<group>"; };
 		AAAC6BAB2677DF7B00BEC1B0 /* TwoPaneLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwoPaneLayoutTests.swift; sourceTree = "<group>"; };
@@ -287,7 +288,6 @@
 				40C3F91E1BD1B22E00F58660 /* Security.framework in Frameworks */,
 				40E2D2302D544F1E00D16B87 /* Silica in Frameworks */,
 				40CF37C029B440A100CDB07A /* ArgumentParser in Frameworks */,
-				400D48FA2A92B0130082750F /* Sparkle in Frameworks */,
 				400F2DF32AABF4FC00C1AAE2 /* KeyboardShortcuts in Frameworks */,
 				40EFFB4A2F0226EF00EDD929 /* Silica in Frameworks */,
 				402F6FA62A81C9E30036B512 /* SkyLight.framework in Frameworks */,
@@ -520,6 +520,7 @@
 			children = (
 				4085824B1EA673AE0075A2C3 /* HotKeyManagerTests.swift */,
 				40EC47F323F3A30100048B4F /* ScreenManagerTests.swift */,
+				AAAA000223F3A30100048B4F /* WindowManagerTests.swift */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -628,7 +629,6 @@
 				40CF37BF29B440A100CDB07A /* ArgumentParser */,
 				400D48F32A92AF1E0082750F /* Cartography */,
 				400D48F62A92AF9B0082750F /* LoginServiceKit */,
-				400D48F92A92B0130082750F /* Sparkle */,
 				400D48FC2A92B06B0082750F /* SwiftyJSON */,
 				400D48FF2A92B0A00082750F /* Yams */,
 				40AE15E22A92E9AF00E14536 /* SwiftyBeaver */,
@@ -705,7 +705,6 @@
 				40CF37BE29B440A100CDB07A /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
 				400D48F22A92AF1E0082750F /* XCRemoteSwiftPackageReference "Cartography" */,
 				400D48F52A92AF9B0082750F /* XCRemoteSwiftPackageReference "LoginServiceKit" */,
-				400D48F82A92B0130082750F /* XCRemoteSwiftPackageReference "Sparkle" */,
 				400D48FB2A92B06A0082750F /* XCRemoteSwiftPackageReference "SwiftyJSON" */,
 				400D48FE2A92B0A00082750F /* XCRemoteSwiftPackageReference "Yams" */,
 				40AE15E12A92E9AF00E14536 /* XCRemoteSwiftPackageReference "SwiftyBeaver" */,
@@ -869,6 +868,7 @@
 				4000DB10239CA07000365A0C /* WideLayoutTests.swift in Sources */,
 				40AB5BEB23AB182300E29346 /* WidescreenTallLayoutTests.swift in Sources */,
 				40EC47F423F3A30100048B4F /* ScreenManagerTests.swift in Sources */,
+				AAAA000123F3A30100048B4F /* WindowManagerTests.swift in Sources */,
 				40D491DB23367630007E0CCB /* FrameAssignmentVerification.swift in Sources */,
 				40AB5BED23AC3CF800E29346 /* ThreeColumnLayoutTests.swift in Sources */,
 				40AB5BE923AB0A2B00E29346 /* TallRightLayoutTests.swift in Sources */,
@@ -1226,14 +1226,6 @@
 				kind = branch;
 			};
 		};
-		400D48F82A92B0130082750F /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
-			};
-		};
 		400D48FB2A92B06A0082750F /* XCRemoteSwiftPackageReference "SwiftyJSON" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SwiftyJSON/SwiftyJSON";
@@ -1326,11 +1318,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 400D48F52A92AF9B0082750F /* XCRemoteSwiftPackageReference "LoginServiceKit" */;
 			productName = LoginServiceKit;
-		};
-		400D48F92A92B0130082750F /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 400D48F82A92B0130082750F /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
 		};
 		400D48FC2A92B06B0082750F /* SwiftyJSON */ = {
 			isa = XCSwiftPackageProductDependency;

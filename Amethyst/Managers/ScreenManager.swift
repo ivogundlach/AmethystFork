@@ -325,6 +325,13 @@ final class ScreenManager<Delegate: ScreenManagerDelegate>: NSObject, Codable {
         let nextLayoutKey = currentLayoutKey == layoutString ? previousLayoutKey : layoutString
 
         guard let layoutIndex = layouts.firstIndex(where: { $0.layoutKey == nextLayoutKey }) else {
+            // Selecting the active layout toggles back to the previous one, but there isn't always
+            // a previous one -- nothing has been toggled yet this session, or the remembered layout
+            // is no longer enabled. Re-applying the current layout is the useful reading of the
+            // request: the user asked for this layout, and if the windows have drifted out of it
+            // (a missed reflow, a window resized by hand) doing nothing at all looks like the
+            // command was ignored.
+            setNeedsReflow()
             return
         }
 
