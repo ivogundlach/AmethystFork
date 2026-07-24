@@ -857,6 +857,12 @@ extension WindowManager: ApplicationObservationDelegate {
 
     func application(_ application: AnyApplication<Application>, didRemoveWindow window: Window) {
         remove(window: window)
+
+        // After a window is destroyed (e.g. closing a tab), scan the same
+        // application for any windows that are now visible but untracked.
+        for windowCandidate in application.windows() {
+            add(window: windowCandidate)
+        }
     }
 
     func application(_ application: AnyApplication<Application>, didFocusWindow window: Window) {
