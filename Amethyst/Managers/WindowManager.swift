@@ -532,6 +532,12 @@ extension WindowManager {
             ownPID: ProcessInfo.processInfo.processIdentifier
         )
 
+        // Unconditionally, not just when adopting: `activeWindows(onScreen:)` drops any window
+        // missing from the active-ID cache, so a window that is tracked but stale in that cache is
+        // excluded from the layout and nothing moves -- indistinguishable, from the outside, from
+        // the window not being tracked at all. The window list this needs was already fetched above.
+        windows.regenerateActiveIDCache()
+
         guard !pidsWithUntrackedWindows.isEmpty else {
             return
         }

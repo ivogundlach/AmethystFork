@@ -50,7 +50,10 @@ if pgrep -x "$APP_NAME" >/dev/null; then
 fi
 
 echo "==> Installing to $DEST"
-rm -rf "$DEST"
-cp -R "$BUILT" "$DEST"
+# Overwrite in place with ditto rather than rm -rf + cp. Deleting and recreating the bundle
+# churns the record TCC keys the Accessibility grant against; doing it repeatedly gets the grant
+# revoked outright, and a window manager without Accessibility silently manages nothing.
+# For the same reason: don't loop this script. Rebuild, then test the running app.
+ditto "$BUILT" "$DEST"
 
 echo "==> Done. Launch with: open -a $APP_NAME"

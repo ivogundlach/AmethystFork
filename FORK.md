@@ -26,6 +26,16 @@ NO_DEPLOY=1 ./build.sh  # build only
 
 Needs Xcode (deployment target was bumped 11 → 12.0; Xcode 27 refuses to build for 11).
 
+**Don't loop this script.** Replacing the app bundle churns the record TCC keys the Accessibility
+grant against; doing it repeatedly in quick succession gets the grant revoked, and a window manager
+without Accessibility silently manages nothing. If that happens:
+
+```
+tccutil reset Accessibility com.ivogundlach.Amethyst
+```
+
+then relaunch and approve the prompt.
+
 ## Fixes on top of upstream
 
 Four are upstream pull requests that were open and unmerged; two are local.
