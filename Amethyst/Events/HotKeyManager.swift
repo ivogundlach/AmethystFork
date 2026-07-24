@@ -70,11 +70,15 @@ class HotKeyManager<Application: ApplicationType>: NSObject {
 
     func setUpWithWindowManager(_ windowManager: WindowManager<Application>, configuration: UserConfiguration, appDelegate: AppDelegate) {
         constructCommandWithCommandKey(CommandKey.cycleLayoutForward.rawValue) {
+            // Asking for a different layout is the moment the window list has to be right.
+            // See WindowManager.adoptUntrackedWindows.
+            windowManager.adoptUntrackedWindows()
             let screenManager: ScreenManager<WindowManager<Application>>? = windowManager.focusedScreenManager()
             screenManager?.cycleLayoutForward()
         }
 
         constructCommandWithCommandKey(CommandKey.cycleLayoutBackward.rawValue) {
+            windowManager.adoptUntrackedWindows()
             let screenManager: ScreenManager<WindowManager<Application>>? = windowManager.focusedScreenManager()
             screenManager?.cycleLayoutBackward()
         }
@@ -277,6 +281,7 @@ class HotKeyManager<Application: ApplicationType>: NSObject {
 
         LayoutType<Application.Window>.availableLayoutStrings().forEach { (layoutKey, _) in
             self.constructCommandWithCommandKey(UserConfiguration.constructLayoutKeyString(layoutKey)) {
+                windowManager.adoptUntrackedWindows()
                 let screenManager: ScreenManager<WindowManager<Application>>? = windowManager.focusedScreenManager()
                 screenManager?.selectLayout(layoutKey)
             }

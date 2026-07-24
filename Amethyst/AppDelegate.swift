@@ -237,6 +237,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        windowManager.adoptUntrackedWindows()
         screenManager.selectLayout(layoutKey)
         // Menu will be refreshed automatically when next opened via NSMenuDelegate
     }

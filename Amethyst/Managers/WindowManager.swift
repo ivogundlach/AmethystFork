@@ -458,6 +458,81 @@ extension WindowManager {
         markAllScreensForReflow()
     }
 
+    /**
+     Adopts windows that the window server reports as on screen but that we are not tracking.
+
+     Tracking is driven entirely by accessibility notifications, and every delivery path for those
+     can drop a window: an observer that failed to register while the app was still launching, an
+     element invalidated by a hide/show cycle, a creation notification that never arrived for a
+     native tab. Those races are worth fixing individually — and are, elsewhere in this file — but a
+     layout is only ever as correct as the window list behind it, and the failure is silent and
+     confusing: a two-pane layout holding one window stretches it to the full screen, and holding
+     none moves nothing at all, so the user sees "the layout didn't apply" rather than "a window
+     went missing".
+
+     Reconciling against the window server closes that gap, because it does not lie about what is
+     on screen. Any on-screen window we do not have gets added through the normal path, which
+     re-applies `shouldBeManaged`, the float rules, and observer registration.
+
+     Cheap by construction: the only syscall in the common case is the window list itself. If
+     nothing is missing, no accessibility calls are made at all.
+     */
+    func adoptUntrackedWindows() {
+        guard let windowsInfo = CGWindowsInfo<Window>(options: .optionOnScreenOnly, windowID: CGWindowID(0)) else {
+            return
+        }
+
+        let trackedIDs = Set(windows.windows.map { $0.cgID() })
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        var pidsWithUntrackedWindows: Set<pid_t> = []
+
+        for description in windowsInfo.descriptions {
+            // Layer 0 is the normal window layer. Menus, HUDs, and the like sit above it and are
+            // never managed, so filtering here keeps us from waking apps up for nothing.
+            guard let layer = description[kCGWindowLayer as String] as? NSNumber, layer.intValue == 0 else {
+                continue
+            }
+
+            guard
+                let windowNumber = description[kCGWindowNumber as String] as? NSNumber,
+                let ownerPID = description[kCGWindowOwnerPID as String] as? NSNumber
+            else {
+                continue
+            }
+
+            let pid = pid_t(ownerPID.int32Value)
+
+            guard pid != ownPID, !trackedIDs.contains(CGWindowID(windowNumber.uint32Value)) else {
+                continue
+            }
+
+            pidsWithUntrackedWindows.insert(pid)
+        }
+
+        guard !pidsWithUntrackedWindows.isEmpty else {
+            return
+        }
+
+        for pid in pidsWithUntrackedWindows {
+            guard let application = applicationWithPID(pid) else {
+                // Never seen this application — most likely its observers never registered.
+                // Clear any give-up state so the retry path will take it seriously again.
+                permanentlyFailedApplications.remove(pid)
+                add(applicationWithPID: pid)
+                continue
+            }
+
+            // The cached window list is what made us miss the window in the first place.
+            application.dropWindowsCache()
+
+            for window in application.windows() {
+                add(window: window)
+            }
+        }
+
+        windows.regenerateActiveIDCache()
+    }
+
     private func add(window: Window, afterWindow otherWindow: Window? = nil) {
         log.debug("Adding window: \(window)")
         guard window.shouldBeManaged() else {
