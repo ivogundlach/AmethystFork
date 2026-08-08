@@ -1005,6 +1005,7 @@ extension WindowManager: ApplicationObservationDelegate {
 
         // After a window is destroyed (e.g. closing a tab), scan the same
         // application for any windows that are now visible but untracked.
+        application.dropWindowsCache()
         for windowCandidate in application.windows() {
             add(window: windowCandidate)
         }

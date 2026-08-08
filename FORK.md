@@ -14,8 +14,10 @@ two-pane layout that leaves one window full-screen or doesn't move anything at a
 | Config domain | `com.ivogundlach.Amethyst`, imported byte-identical from the old domain |
 | Auto-update | **Removed.** Sparkle is gone from the project entirely |
 
-Upstream 0.24.3 and the original preferences are archived at
-`~/.local/state/amethyst-fork/` in case anything needs to go back.
+A snapshot of the working preferences is kept at
+`~/.local/state/amethyst-fork/com.ivogundlach.Amethyst.plist.backup`. Everything belonging to the
+old `com.amethyst.Amethyst` bundle — the app, its preference domain, caches, and Sparkle's storage —
+was deleted on 2026-07-24, so there is no going back to upstream without rebuilding it from git.
 
 ## Build
 
@@ -58,8 +60,9 @@ whenever it actually adopts something — the line to look for if tiling ever go
 `float-small-windows` (threshold 850) still floats a window that is under 850×850 **at the moment
 Amethyst first sees it**, permanently, and is never re-evaluated. That is intended: it keeps
 one-off menus and settings panes from being enlarged. Worth knowing that a *main* window which
-happens to be briefly small while its app launches gets floated for the rest of its life; `mod1+t`
-(toggle float) is the recovery if that ever shows up.
+happens to be briefly small while its app launches gets floated for the rest of its life. The
+recovery for that is the `toggle-float` command, which is **not currently bound to a hotkey** — only
+`cycle-layout` (⌃⌥⌘Space) and `focus-cw` (⌃⌥⌘→) are.
 
 ## Gotcha: tests clobber the preference domain
 
@@ -68,7 +71,7 @@ The test target's host is the app, so `xcodebuild test` writes stock default hot
 
 ```
 defaults delete com.ivogundlach.Amethyst
-defaults import com.ivogundlach.Amethyst ~/.local/state/amethyst-fork/com.amethyst.Amethyst.plist.backup
+defaults import com.ivogundlach.Amethyst ~/.local/state/amethyst-fork/com.ivogundlach.Amethyst.plist.backup
 ```
 
 ## Pulling in upstream later
