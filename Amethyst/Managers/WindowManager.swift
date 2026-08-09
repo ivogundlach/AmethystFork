@@ -81,6 +81,17 @@ final class WindowManager<Application: ApplicationType>: NSObject, Codable {
     private let pendingTrackInterval: TimeInterval = 2.0
     private let maxPendingTrackAttempts = 10
 
+    // Login is when windows are most likely to be lost. Applications restore over the first minute
+    // or so, and every tracking path here can lose that race: an observer that was not ready yet,
+    // a window the window server could not yet place on a screen or a space. Those failures are
+    // silent -- the window simply never joins the layout, and after a reboot the layout is back to
+    // the first one, so a window still carrying a half-width frame from the previous session just
+    // sits there. `adoptUntrackedWindows` already repairs exactly this, but only on an explicit
+    // layout command, which means the repair has to be asked for by hand. Sweeping a few times
+    // while the desktop settles does it unprompted, and stops before it costs anything ongoing.
+    private let startupReconciliationDelays: [TimeInterval] = [5, 15, 30, 60]
+    private var startupReconciliationTimers: [Timer] = []
+
     private lazy var mouseStateKeeper = MouseStateKeeper(delegate: self)
     private lazy var applicationEventHandler = ApplicationEventHandler(delegate: self)
     private let userConfiguration: UserConfiguration
@@ -124,12 +135,34 @@ final class WindowManager<Application: ApplicationType>: NSObject, Codable {
 
         reevaluateWindows()
         screens.updateScreens(windowManager: self)
+        scheduleStartupReconciliation()
     }
 
     deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         NotificationCenter.default.removeObserver(self)
         pendingTrackTimer?.invalidate()
+        startupReconciliationTimers.forEach { $0.invalidate() }
+    }
+
+    /**
+     Reconciles against the window server a few times while the desktop settles after launch.
+
+     See `startupReconciliationDelays` for why launch specifically. Each sweep is followed by a
+     reflow rather than only reflowing when something was adopted: a window can also be tracked but
+     missing from the active-window cache, which excludes it from the layout just as completely, and
+     `adoptUntrackedWindows` refreshes that cache unconditionally without any event to re-tile on.
+     */
+    private func scheduleStartupReconciliation() {
+        startupReconciliationTimers = startupReconciliationDelays.map { delay in
+            Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+                guard let self = self else {
+                    return
+                }
+                self.adoptUntrackedWindows()
+                self.markAllScreensForReflow()
+            }
+        }
     }
 
     func reset() {
