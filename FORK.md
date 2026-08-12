@@ -40,7 +40,7 @@ then relaunch and approve the prompt.
 
 ## Fixes on top of upstream
 
-Four are upstream pull requests that were open and unmerged; two are local.
+Four are upstream pull requests that were open and unmerged; four are local.
 
 | Change | Source | What it fixes |
 |---|---|---|
@@ -51,7 +51,8 @@ Four are upstream pull requests that were open and unmerged; two are local.
 | Rescan an app after one of its windows is destroyed | [#1871](https://github.com/ianyh/Amethyst/pull/1871) | Closing a native tab doesn't always notify about the window that remains. |
 | **Reconcile untracked windows on layout switch** | local | The general case. Tracking is driven by accessibility notifications and every path can drop a window; the fixes above each close one race. On an explicit layout command, the window server — which doesn't lie about what's on screen — is consulted and anything on screen but untracked is adopted. Costs one syscall when nothing is missing. |
 | **Re-selecting the active layout applies it** | local | Picking the current layout toggles back to the previous one, by design. With no previous layout the guard returned without even a reflow, so the command looked ignored precisely when windows had drifted out of the layout. |
-| **Reconcile again while the desktop settles after launch** | local | Login is where windows get lost: apps restore over the first minute and the tracking races above are all live. The reconciliation above repairs it, but only when a layout command asks for it, so a window dropped at login stayed untiled until it was fixed by hand — visible after a reboot as a window still carrying its half-width frame from the previous session while the layout is back to Fullscreen. Now swept at 5s, 15s, 30s and 60s after launch, each followed by a reflow, then never again. |
+| **Reconcile untracked windows continuously** | local | The launch-only sweeps healed login races but stopped after 60 s, so a window dropped mid-session stayed stranded until repaired by hand (seen 2026-08-11: three apps full-screen behind a half-tiled window after ~20 h uptime). Reconciliation now repeats every 15 s for the life of the process, each sweep followed by a reflow. A quiet sweep costs one window-list syscall and no accessibility calls; reflows are idempotent, so a sweep with nothing to repair has no visible effect. |
+| **Remember the selected layout across relaunches** | local | The selected layout lived only in memory, so every relaunch silently reset to the first configured layout (Fullscreen) regardless of what was in use. Every explicit selection now writes its layout key to `lastSelectedLayoutKey` in the preference domain; fresh launches and never-visited spaces default to it. Per-space choices within a session are unchanged, and a remembered layout that is no longer configured falls back to the first one. |
 
 `WindowManager.adoptUntrackedWindows()` logs `Reconciling untracked on-screen windows for pids: […]`
 whenever it actually adopts something — the line to look for if tiling ever goes wrong again.
