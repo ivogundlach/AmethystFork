@@ -81,16 +81,18 @@ final class WindowManager<Application: ApplicationType>: NSObject, Codable {
     private let pendingTrackInterval: TimeInterval = 2.0
     private let maxPendingTrackAttempts = 10
 
-    // Login is when windows are most likely to be lost. Applications restore over the first minute
-    // or so, and every tracking path here can lose that race: an observer that was not ready yet,
-    // a window the window server could not yet place on a screen or a space. Those failures are
-    // silent -- the window simply never joins the layout, and after a reboot the layout is back to
-    // the first one, so a window still carrying a half-width frame from the previous session just
-    // sits there. `adoptUntrackedWindows` already repairs exactly this, but only on an explicit
-    // layout command, which means the repair has to be asked for by hand. Sweeping a few times
-    // while the desktop settles does it unprompted, and stops before it costs anything ongoing.
-    private let startupReconciliationDelays: [TimeInterval] = [5, 15, 30, 60]
-    private var startupReconciliationTimers: [Timer] = []
+    // Windows fall out of tracking through races that never produce an event: an observer that was
+    // not ready yet, a window the window server could not yet place on a screen or a space. Those
+    // failures are silent -- the window simply never joins the layout, so a two-pane layout ends up
+    // holding one window full-screen behind a half-tiled one. This happens mid-session as readily
+    // as at login (seen 2026-08-11: three apps stranded full-screen after ~20 h uptime), so
+    // reconciliation cannot be a startup-only sweep or wait for a manual layout command: it repeats
+    // for the life of the process. A sweep costs one window-list syscall when nothing is missing
+    // and makes no accessibility calls, so running it forever costs nothing measurable;
+    // `adoptUntrackedWindows` does any repair through the normal add path (management check, float
+    // rules, observer registration).
+    private let reconciliationInterval: TimeInterval = 15
+    private var reconciliationTimer: Timer?
 
     private lazy var mouseStateKeeper = MouseStateKeeper(delegate: self)
     private lazy var applicationEventHandler = ApplicationEventHandler(delegate: self)
@@ -135,34 +137,37 @@ final class WindowManager<Application: ApplicationType>: NSObject, Codable {
 
         reevaluateWindows()
         screens.updateScreens(windowManager: self)
-        scheduleStartupReconciliation()
+        scheduleReconciliation()
     }
 
     deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         NotificationCenter.default.removeObserver(self)
         pendingTrackTimer?.invalidate()
-        startupReconciliationTimers.forEach { $0.invalidate() }
+        reconciliationTimer?.invalidate()
     }
 
     /**
-     Reconciles against the window server a few times while the desktop settles after launch.
+     Reconciles against the window server on a repeating timer for the life of the process.
 
-     See `startupReconciliationDelays` for why launch specifically. Each sweep is followed by a
-     reflow rather than only reflowing when something was adopted: a window can also be tracked but
-     missing from the active-window cache, which excludes it from the layout just as completely, and
+     See `reconciliationInterval` for why continuous. Each sweep is followed by a reflow rather
+     than only reflowing when something was adopted: a window can also be tracked but missing from
+     the active-window cache, which excludes it from the layout just as completely, and
      `adoptUntrackedWindows` refreshes that cache unconditionally without any event to re-tile on.
+     Reflows are idempotent -- windows already at their assigned frames are set to the same
+     frames -- so a sweep with nothing to repair has no visible effect.
      */
-    private func scheduleStartupReconciliation() {
-        startupReconciliationTimers = startupReconciliationDelays.map { delay in
-            Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-                guard let self = self else {
-                    return
-                }
-                self.adoptUntrackedWindows()
-                self.markAllScreensForReflow()
+    private func scheduleReconciliation() {
+        reconciliationTimer?.invalidate()
+        let timer = Timer.scheduledTimer(withTimeInterval: reconciliationInterval, repeats: true) { [weak self] _ in
+            guard let self = self else {
+                return
             }
+            self.adoptUntrackedWindows()
+            self.markAllScreensForReflow()
         }
+        timer.tolerance = reconciliationInterval / 3
+        reconciliationTimer = timer
     }
 
     func reset() {

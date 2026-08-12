@@ -16,6 +16,11 @@ struct LayoutMenuItemInfo {
     let isSelected: Bool
 }
 
+/// Defaults key holding the layout key most recently selected on any screen. Session state rather
+/// than configuration: it lets a fresh launch and never-visited spaces open in the layout the user
+/// last chose instead of silently resetting to the first configured one.
+private let lastSelectedLayoutDefaultsKey = "lastSelectedLayoutKey"
+
 protocol ScreenManagerDelegate: AnyObject {
     associatedtype Window: WindowType
     func applyWindowLimit(forScreenManager screenManager: ScreenManager<Self>, minimizingIn range: (_ windowCount: Int) -> Range<Int>)
@@ -56,6 +61,19 @@ final class ScreenManager<Delegate: ScreenManagerDelegate>: NSObject, Codable {
     private var layoutsBySpaceUUID: [String: [Layout<Window>]] = [:]
     private var currentLayoutIndex: Int = 0
     var previousLayoutKey: String?
+
+    /// The layout to open with on a space that has no in-memory choice yet: the last one the user
+    /// explicitly selected, or the first configured layout when nothing was ever selected (or the
+    /// remembered layout is no longer enabled). Per-space layout lists share order and count --
+    /// `decodedLayouts(from:)` maps onto the configured list -- and `updateSpace(to:)` swaps the
+    /// space's list in before consulting this, so the index is valid for whichever list is active.
+    private var defaultLayoutIndex: Int {
+        guard let key = UserDefaults.standard.string(forKey: lastSelectedLayoutDefaultsKey) else {
+            return 0
+        }
+        return layouts.firstIndex(where: { $0.layoutKey == key }) ?? 0
+    }
+
     var currentLayout: Layout<Window>? {
         guard !layouts.isEmpty else {
             return nil
@@ -162,14 +180,18 @@ final class ScreenManager<Delegate: ScreenManagerDelegate>: NSObject, Codable {
 
         self.space = space
 
-        setCurrentLayoutIndex(currentLayoutIndexBySpaceUUID[space.uuid] ?? 0, changingSpace: true)
-
+        // Layouts come first: a screen manager restored from disk has no `layouts` until they are
+        // swapped in here, and both the bounds check and the remembered-layout lookup in
+        // `setCurrentLayoutIndex` need the real list. (Setting the index before this, as the code
+        // used to, silently discarded the lookup on the restored path.)
         if let layouts = layoutsBySpaceUUID[space.uuid] {
             self.layouts = layouts
         } else {
             self.layouts = LayoutType.layoutsWithConfiguration(userConfiguration)
             layoutsBySpaceUUID[space.uuid] = layouts
         }
+
+        setCurrentLayoutIndex(currentLayoutIndexBySpaceUUID[space.uuid] ?? defaultLayoutIndex, changingSpace: true)
     }
 
     func distributeEvent(_ change: Change<Window>) {
@@ -346,6 +368,12 @@ final class ScreenManager<Delegate: ScreenManagerDelegate>: NSObject, Codable {
         }
 
         currentLayoutIndex = index
+
+        if !changingSpace {
+            // A space change only restores a remembered index; an explicit selection is what gets
+            // persisted for the next launch.
+            UserDefaults.standard.set(layouts[index].layoutKey, forKey: lastSelectedLayoutDefaultsKey)
+        }
 
         guard !changingSpace || userConfiguration.enablesLayoutHUDOnSpaceChange() else {
             return
