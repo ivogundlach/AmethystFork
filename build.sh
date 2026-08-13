@@ -18,6 +18,7 @@ BUILT="$DERIVED/Build/Products/Release/$APP_NAME.app"
 DEST="/Applications/$APP_NAME.app"
 
 echo "==> Building $APP_NAME (Release)"
+set -o pipefail
 xcodebuild \
     -workspace "$APP_NAME.xcworkspace" \
     -scheme "$APP_NAME" \
@@ -28,11 +29,20 @@ xcodebuild \
     DEVELOPMENT_TEAM="" \
     OTHER_CODE_SIGN_FLAGS="--timestamp=none" \
     build 2>&1 | grep -E "error:|warning: .*(deprecated|unused)|BUILD" || true
+build_status=${PIPESTATUS[0]}
+set +o pipefail
+
+if [ "$build_status" -ne 0 ]; then
+    echo "!! Build failed (xcodebuild exit $build_status); refusing to install" >&2
+    exit "$build_status"
+fi
 
 if [ ! -d "$BUILT" ]; then
     echo "!! Build produced no app at $BUILT" >&2
     exit 1
 fi
+# Refuse to install an app binary older than this build invocation would allow only if
+# the product path exists from a previous successful build while this one failed above. | 
 
 echo "==> Verifying signature"
 codesign --verify --deep --strict "$BUILT"
