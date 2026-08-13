@@ -91,7 +91,12 @@ final class WindowManager<Application: ApplicationType>: NSObject, Codable {
     // and makes no accessibility calls, so running it forever costs nothing measurable;
     // `adoptUntrackedWindows` does any repair through the normal add path (management check, float
     // rules, observer registration).
-    private let reconciliationInterval: TimeInterval = 15
+    //
+    // A second silent failure mode is permanent float from `float-small-windows`: the flag is decided
+    // once at first sight. A main window that was briefly under the threshold while its app launched
+    // stays floating forever and is excluded from every layout -- same half-tiled symptom as an
+    // untracked window. Each sweep re-checks floating windows that are now large enough to tile.
+    private let reconciliationInterval: TimeInterval = 5
     private var reconciliationTimer: Timer?
 
     private lazy var mouseStateKeeper = MouseStateKeeper(delegate: self)
@@ -150,12 +155,14 @@ final class WindowManager<Application: ApplicationType>: NSObject, Codable {
     /**
      Reconciles against the window server on a repeating timer for the life of the process.
 
-     See `reconciliationInterval` for why continuous. Each sweep is followed by a reflow rather
-     than only reflowing when something was adopted: a window can also be tracked but missing from
-     the active-window cache, which excludes it from the layout just as completely, and
-     `adoptUntrackedWindows` refreshes that cache unconditionally without any event to re-tile on.
-     Reflows are idempotent -- windows already at their assigned frames are set to the same
-     frames -- so a sweep with nothing to repair has no visible effect.
+     See `reconciliationInterval` for why continuous. Each sweep:
+     1. adopts on-screen windows that were never tracked,
+     2. unfloats windows that only floated because they were briefly small at first sight,
+     3. refreshes the active-window cache,
+     4. reflows every screen.
+
+     Reflows are coalesced per screen (see `ScreenManager.setNeedsReflow`) so a quiet sweep with
+     nothing to repair has no visible effect, and a burst cannot cancel a half-finished pass.
      */
     private func scheduleReconciliation() {
         reconciliationTimer?.invalidate()
@@ -164,6 +171,7 @@ final class WindowManager<Application: ApplicationType>: NSObject, Codable {
                 return
             }
             self.adoptUntrackedWindows()
+            self.healAccidentalSmallWindowFloats()
             self.markAllScreensForReflow()
         }
         timer.tolerance = reconciliationInterval / 3
@@ -602,6 +610,40 @@ extension WindowManager {
         windows.regenerateActiveIDCache()
     }
 
+    /**
+     Unfloats tracked windows that only floated because they were under the small-window threshold
+     the first time Amethyst saw them, and have since grown to a real size.
+
+     `float-small-windows` is intentional for menus and settings panes, but it is evaluated once and
+     never again. A main window that launches briefly small (common for Electron and web apps) is
+     permanently excluded from tiling -- the same "one full-screen, one half-screen" symptom as an
+     untracked window. Only windows tagged size-based at determination time are eligible, so a
+     blacklist float or a user toggle-float is never undone.
+     */
+    func healAccidentalSmallWindowFloats() {
+        let threshold = userConfiguration.smallWindowSize()
+        guard userConfiguration.floatSmallWindows() else {
+            return
+        }
+
+        var healed = 0
+        for window in windows.windows where windows.isWindowSizeFloated(window) {
+            let frame = window.frame()
+            // Still small: leave it floating (real menus / prefs panes).
+            if frame.size.width < threshold && frame.size.height < threshold {
+                continue
+            }
+
+            windows.setFloating(false, forWindow: window)
+            healed += 1
+        }
+
+        if healed > 0 {
+            log.debug("Healed \(healed) window(s) that had been permanently floated from a brief small size")
+            windows.regenerateActiveIDCache()
+        }
+    }
+
     private func add(window: Window, afterWindow otherWindow: Window? = nil) {
         log.debug("Adding window: \(window)")
         guard window.shouldBeManaged() else {
@@ -759,11 +801,29 @@ extension WindowManager {
     }
 
     private func determineFloatForWindow(_ window: Window, application: AnyApplication<Application>, force: Bool) throws {
+        // Size-based float is decided before the bundle/title rules and is the only float reason
+        // that becomes wrong later (a main window briefly small at launch). Tag it only when size
+        // is the sole reason -- a blacklist app that also happens to launch small must stay floating
+        // after it grows.
+        let sizeBased: Bool = {
+            guard window.shouldFloat() else {
+                return false
+            }
+            guard let running = NSRunningApplication(processIdentifier: application.pid()) else {
+                return false
+            }
+            switch userConfiguration.runningApplication(running, byDefaultFloatsForTitle: window.title()) {
+            case .reliable(.notFloating), .unreliable(.notFloating):
+                return true
+            case .reliable(.floating), .unreliable(.floating):
+                return false
+            }
+        }()
         switch application.defaultFloatForWindow(window) {
         case .unreliable where !force:
             throw TrackingError.unreliableFloating
         case .reliable(.floating), .unreliable(.floating):
-            windows.setFloating(true, forWindow: window)
+            windows.setFloating(true, forWindow: window, sizeBased: sizeBased)
         case .reliable(.notFloating), .unreliable(.notFloating):
             windows.setFloating(false, forWindow: window)
         }

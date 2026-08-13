@@ -16,6 +16,10 @@ extension WindowManager {
         private var activeIDCache: Set<CGWindowID> = Set()
         private var deactivatedPIDs: Set<pid_t> = Set()
         private var floatingMap: [Window.WindowID: Bool] = [:]
+        // Windows floated solely because they were under the small-window threshold at first sight.
+        // Separate from `floatingMap` so a later heal can reverse only that case without undoing a
+        // blacklist float or a user toggle-float.
+        private var sizeFloatedIDs: Set<Window.WindowID> = []
 
         // MARK: Window Filters
 
@@ -105,6 +109,8 @@ extension WindowManager {
                 return
             }
 
+            floatingMap.removeValue(forKey: window.id())
+            sizeFloatedIDs.remove(window.id())
             windows.remove(at: windowIndex)
         }
 
@@ -195,8 +201,17 @@ extension WindowManager {
             return floatingMap[window.id()] ?? false
         }
 
-        func setFloating(_ floating: Bool, forWindow window: Window) {
+        func isWindowSizeFloated(_ window: Window) -> Bool {
+            return sizeFloatedIDs.contains(window.id())
+        }
+
+        func setFloating(_ floating: Bool, forWindow window: Window, sizeBased: Bool = false) {
             floatingMap[window.id()] = floating
+            if floating && sizeBased {
+                sizeFloatedIDs.insert(window.id())
+            } else {
+                sizeFloatedIDs.remove(window.id())
+            }
         }
 
         func activateApplication(withPID pid: pid_t) {

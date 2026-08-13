@@ -56,6 +56,13 @@ final class ScreenManager<Delegate: ScreenManagerDelegate>: NSObject, Codable {
     )
     private let reflowOperationQueue = OperationQueue()
 
+    // Coalesce reflow requests instead of cancelling in-flight frame assignments. Cancelling mid-pass
+    // is the half-tiled / half-fullscreen failure mode: one window already received its new frame
+    // while its partner still holds the previous layout's frame. A pending flag re-runs once the
+    // current pass finishes, so bursts of events still collapse to a single clean layout.
+    private var reflowInFlight = false
+    private var reflowPending = false
+
     private var layouts: [Layout<Window>] = []
     private var currentLayoutIndexBySpaceUUID: [String: Int] = [:]
     private var layoutsBySpaceUUID: [String: [Layout<Window>]] = [:]
@@ -223,7 +230,17 @@ final class ScreenManager<Delegate: ScreenManagerDelegate>: NSObject, Codable {
     }
 
     func setNeedsReflow() {
-        reflowOperationQueue.cancelAllOperations()
+        reflowPending = true
+        startReflowIfNeeded()
+    }
+
+    private func startReflowIfNeeded() {
+        guard reflowPending, !reflowInFlight else {
+            return
+        }
+
+        reflowPending = false
+        reflowInFlight = true
 
         log.debug("Screen: \(screen?.screenID() ?? "unknown") reflow")
 
@@ -231,6 +248,11 @@ final class ScreenManager<Delegate: ScreenManagerDelegate>: NSObject, Codable {
             self.minimizeWindows()
             self.reflow()
         }
+    }
+
+    private func finishReflowPass() {
+        reflowInFlight = false
+        startReflowIfNeeded()
     }
 
     private func minimizeWindows() {
@@ -269,24 +291,39 @@ final class ScreenManager<Delegate: ScreenManagerDelegate>: NSObject, Codable {
 
     private func reflow() {
         guard let screen = screen else {
+            finishReflowPass()
             return
         }
 
-        guard userConfiguration.tilingEnabled, space?.type == CGSSpaceTypeUser else {
+        guard userConfiguration.tilingEnabled else {
+            finishReflowPass()
             return
         }
 
         // During rapid Space transitions, activation/focus notifications can arrive before
-        // this screen manager updates its tracked Space. Skip reflow if state is stale.
+        // this screen manager updates its tracked Space. Catch up rather than skip: a skipped
+        // reflow leaves windows on the previous layout's frames until something else asks again.
+        if let currentSpace = CGSpacesInfo<Window>.currentSpaceForScreen(screen), currentSpace.id != space?.id {
+            updateSpace(to: currentSpace)
+        }
+
+        guard space?.type == CGSSpaceTypeUser else {
+            finishReflowPass()
+            return
+        }
+
         guard let currentSpace = CGSpacesInfo<Window>.currentSpaceForScreen(screen), currentSpace.id == space?.id else {
+            finishReflowPass()
             return
         }
 
         guard let windows = delegate?.activeWindowSet(forScreenManager: self) else {
+            finishReflowPass()
             return
         }
 
         guard let layout = currentLayout, let frameAssignments = layout.frameAssignments(windows, on: screen) else {
+            finishReflowPass()
             return
         }
 
@@ -295,14 +332,18 @@ final class ScreenManager<Delegate: ScreenManagerDelegate>: NSObject, Codable {
 
         let completeOperation = BlockOperation()
 
-        // The complete operation should execute the completion delegate call
-        completeOperation.addExecutionBlock { [unowned completeOperation, weak self] in
-            if completeOperation.isCancelled {
-                return
-            }
-
+        // The complete operation should execute the completion delegate call.
+        // Read isCancelled on the operation queue before hopping to main -- by the time main
+        // runs the BlockOperation may already be released, so it must not be captured unowned
+        // into the nested async (that crash is what brought the process down on first reflow).
+        completeOperation.addExecutionBlock { [weak self] in
+            let wasCancelled = completeOperation.isCancelled
             DispatchQueue.main.async {
-                self?.delegate?.onReflowCompletion()
+                if !wasCancelled {
+                    self?.delegate?.onReflowCompletion()
+                }
+                // Always release the in-flight latch, cancelled or not, so coalesced requests run.
+                self?.finishReflowPass()
                 // TODO: fix mff
 //                if mouseFollowsFocus {
 //                    if case .windowSwap(let window, _) = event {
