@@ -41,8 +41,6 @@ if [ ! -d "$BUILT" ]; then
     echo "!! Build produced no app at $BUILT" >&2
     exit 1
 fi
-# Refuse to install an app binary older than this build invocation would allow only if
-# the product path exists from a previous successful build while this one failed above. | 
 
 echo "==> Verifying signature"
 codesign --verify --deep --strict "$BUILT"
